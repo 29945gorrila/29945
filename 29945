@@ -1,7 +1,7 @@
 if getgenv().Loaded == true then
     if getgenv().Holy.Options.UpdateNotification then
         game:GetService("StarterGui"):SetCore("SendNotification", {
-            Title = "22954",
+            Title = "holy",
             Text = "Updated Your Shitty Config Bro",
             Duration = 0.01,
         })
