@@ -10,7 +10,7 @@ if getgenv().Loaded == true then
     return
 end
 
-if getgenv().Holy.Options.Intro then
+if getgenv().Holy and getgenv().Holy.Options and getgenv().Holy.Options.Intro then
     local ImageIdfr = "rbxassetid://91594048373072"
     local Intro = {
         Intro = Instance.new("ScreenGui"),
