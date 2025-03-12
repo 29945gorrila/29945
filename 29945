@@ -2,16 +2,16 @@
 if getgenv().Loaded == true then
     if getgenv().Holy.Options.UpdateNotification then
         game:GetService("StarterGui"):SetCore("SendNotification", {
-            Title = "22945",
-            Text = "Updated That Shitty Config",
+            Title = "29945",
+            Text = "Updated Config",
             Duration = 0.01,
         })
     end
     return
 end
 
-if getgenv().Holy and getgenv().Holy.Options and getgenv().Holy.Options.Intro then
-    local ImageIdfr = "rbxassetid://91594048373072"
+if getgenv().Holy.Options.Intro then
+    local ImageIdfr = "rbxassetid://138494005080029" -- fix next update
     local Intro = {
         Intro = Instance.new("ScreenGui"),
         Anchored_Frame = Instance.new("Frame"),
@@ -69,7 +69,6 @@ local Camera = workspace.CurrentCamera
 local LocalPlayer = Players.LocalPlayer
 local Mouse = LocalPlayer:GetMouse()
 
--- thanks to howl for the evvents
 local Games = {
     [2788229376]  = { Name = "Da Hood", Argument = "UpdateMousePosI2", Remote = "MainEvent" },
     [16033173781] = {Name = "Da Hood Macro", Argument = "UpdateMousePosI2", Remote = "MainEvent"},
