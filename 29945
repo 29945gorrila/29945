@@ -1,8 +1,8 @@
 if getgenv().Loaded == true then
     if getgenv().Holy.Options.UpdateNotification then
         game:GetService("StarterGui"):SetCore("SendNotification", {
-            Title = "holy",
-            Text = "Updated Your Shitty Config Bro",
+            Title = "29945",
+            Text = "Updated Config",
             Duration = 0.01,
         })
     end
@@ -10,7 +10,7 @@ if getgenv().Loaded == true then
 end
 
 if getgenv().Holy.Options.Intro then
-    local ImageIdfr = "rbxassetid://138494005080029" -- fixed soon
+    local ImageIdfr = "rbxassetid://138494005080029" -- fix next update
     local Intro = {
         Intro = Instance.new("ScreenGui"),
         Anchored_Frame = Instance.new("Frame"),
@@ -68,7 +68,8 @@ local Camera = workspace.CurrentCamera
 local LocalPlayer = Players.LocalPlayer
 local Mouse = LocalPlayer:GetMouse()
 
--- ty howl
+
+-- thank you for game offsets random discrod serwervr
 local Games = {
     [2788229376]  = { Name = "Da Hood", Argument = "UpdateMousePosI2", Remote = "MainEvent" },
     [16033173781] = {Name = "Da Hood Macro", Argument = "UpdateMousePosI2", Remote = "MainEvent"},
@@ -104,8 +105,8 @@ local Settings = {
     AimPredictionX = getgenv().Holy.Combat.Aimbot.PredictionX,
     AimPredictionY = getgenv().Holy.Combat.Aimbot.PredictionY,
     MouseTpSmoothing = function() return getgenv().Holy.Combat.Aimbot.MouseTp.Smoothness end,
-    MouseTpPredictionX = getgenv().Holy.Combat.Aimbot.MouseTp.PredictionX, -- New X prediction
-    MouseTpPredictionY = getgenv().Holy.Combat.Aimbot.MouseTp.PredictionY, -- New Y prediction
+    MouseTpPredictionX = getgenv().Holy.Combat.Aimbot.MouseTp.PredictionX, 
+    MouseTpPredictionY = getgenv().Holy.Combat.Aimbot.MouseTp.PredictionY, 
     EasingStyles = {"Linear", "Sine", "Quad", "Cubic", "Exponential", "Back", "Bounce", "Elastic"},
     EasingStyle = "Back",
     EasingDirection = "Out",
@@ -265,16 +266,6 @@ local function resolvePartVelocity(part)
     return (currentPosition - lastPosition) / 0.145
 end
 
-local function getRandomVector3(aimbot)
-    local positiveShakeAmount = aimbot.Shake.Amount
-    local negativeShakeAmount = -positiveShakeAmount
-    local factor = 0.01
-    return newVector3(
-        random(-negativeShakeAmount, positiveShakeAmount) * factor,
-        random(-negativeShakeAmount, positiveShakeAmount) * factor,
-        random(-negativeShakeAmount, positiveShakeAmount) * factor
-    )
-end
 
 local function getAimAssistPredictedPosition(target, isMouseTp)
     local partName = isMouseTp and getgenv().Holy.Combat.Aimbot.MouseTp.Part or getgenv().Holy.Combat.Aimbot.Part
@@ -319,9 +310,6 @@ RunService.Heartbeat:Connect(function(deltaTime)
             goalPosition = getAimAssistPredictedPosition(TargetPlayer, isFalling and true or false) or targetPart.Position
         else
             goalPosition = targetPart.Position + (resolvePartVelocity(targetPart) * adjustPrediction(targetData, targetPart))
-        end
-        if aimbot.Shake.Enabled then
-            goalPosition = goalPosition + getRandomVector3(aimbot)
         end
         local goal = newCFrame(Camera.CFrame.Position, goalPosition)
         local easedProgress = applyEasing(1 - math.pow(1 - alpha, deltaTime * 60), Settings.EasingStyle, Settings.EasingDirection)
@@ -430,10 +418,8 @@ RunService.PostSimulation:Connect(function()
         local humanoid = TriggerBotTarget.Character and TriggerBotTarget.Character:FindFirstChild("Humanoid")
         local playerTool = LocalPlayer.Character and LocalPlayer.Character:FindFirstChildOfClass("Tool")
         
-        -- Health check: Unlock if health < 1
         if humanoid and humanoid.Health < 1 then
             TriggerBotTarget = nil
-            return -- Exit early since target is invalid
         end
 
         if hrp and playerTool then
@@ -479,7 +465,6 @@ local function GetSilentPredictedPosition(target)
     if not Velocity then return Part.Position end
     local PredictionTime = SilentAim.Prediction
     local basePosition = Part.Position + Velocity * PredictionTime
-    -- Apply head offset if targeting Head
     if SilentAim.TargetPart == "Head" then
         local headOffset = getgenv().Holy.Combat.Silent.Offsets.Head.Amount
         basePosition = basePosition + Vector3.new(0, headOffset, 0)
@@ -651,7 +636,6 @@ end)
 
 getgenv().Loaded = true
 
--- ForceHit Logic
 local plrs = game:GetService("Players")
 local repl = game:GetService("ReplicatedStorage")
 local threading = game:GetService("RunService")
@@ -697,17 +681,14 @@ local function setupTool(tool)
             tool.Activated:Connect(function()
                 local forceHit = getgenv().Holy.Combat.ForceHit
                 if forceHit.Enabled then
-                    -- Check if linked to camlock and camlock is active
                     if forceHit.LinkedToCamlock and not IsLocking then
-                        return -- Skip if camlock is off and linked
+                        return 
                     end
                     
-                    -- Use camlock target if linked, otherwise use ForceHit target
                     local target = forceHit.LinkedToCamlock and TargetPlayer or ForceHitTarget
                     if target and target.Character then
                         local hitParts = forceHit.HitParts
                         local selectedPart = nil
-                        -- Select the first available part from HitParts
                         for _, partName in pairs(hitParts) do
                             selectedPart = target.Character:FindFirstChild(partName)
                             if selectedPart then break end
@@ -744,7 +725,7 @@ local function setupTool(tool)
     end
 end
 
--- Connect to tools in Backpack
+
 me.Backpack.ChildAdded:Connect(function(child)
     setupTool(child)
 end)
@@ -753,7 +734,7 @@ for _, tool in pairs(me.Backpack:GetChildren()) do
     setupTool(tool)
 end
 
--- Connect to currently equipped tool
+
 if me.Character then
     local tool = me.Character:FindFirstChildOfClass("Tool")
     if tool then
@@ -761,14 +742,14 @@ if me.Character then
     end
 end
 
--- Connect to new character and tools
+
 me.CharacterAdded:Connect(function(character)
     character.ChildAdded:Connect(function(child)
         setupTool(child)
     end)
 end)
 
--- Update ForceHit target every frame (only if not linked to camlock)
+
 threading.RenderStepped:Connect(function()
     if not getgenv().Holy.Combat.ForceHit.LinkedToCamlock then
         get_closest_forcehit()
