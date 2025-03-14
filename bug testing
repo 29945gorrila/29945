@@ -68,6 +68,7 @@ local Camera = workspace.CurrentCamera
 local LocalPlayer = Players.LocalPlayer
 local Mouse = LocalPlayer:GetMouse()
 
+
 -- thank you for game offsets random discrod serwervr
 local Games = {
     [2788229376]  = { Name = "Da Hood", Argument = "UpdateMousePosI2", Remote = "MainEvent" },
@@ -265,6 +266,7 @@ local function resolvePartVelocity(part)
     return (currentPosition - lastPosition) / 0.145
 end
 
+
 local function getAimAssistPredictedPosition(target, isMouseTp)
     local partName = isMouseTp and getgenv().Holy.Combat.Aimbot.MouseTp.Part or getgenv().Holy.Combat.Aimbot.Part
     local character = target.Character
@@ -358,24 +360,17 @@ local function handleMouseTp(deltaTime)
     if not humanoid or not targetPart then return end
 
     local predictedPosition = getAimAssistPredictedPosition(TargetPlayer, true) or targetPart.Position
+    local delta = tick() - LastUpdate
+    local speed = math.clamp(Settings.MouseTpSmoothing(), 0, 1)
+    local alpha = 1 - math.pow(1 - speed, delta * 60)
+    local easedProgress = applyEasing(alpha, Settings.EasingStyle, Settings.EasingDirection)
     local screenPos, onScreen = Camera:WorldToViewportPoint(predictedPosition)
 
     if onScreen and MainEvent then
-        local speed = math.clamp(Settings.MouseTpSmoothing(), 0, 1) 
+        local currentMousePos = newVector2(Mouse.X, Mouse.Y)
         local targetPos = newVector2(screenPos.X, screenPos.Y)
-
-       
-        if math.abs(speed - 1) < 0.001 then
-            updateMousePosition(newVector3(targetPos.X, targetPos.Y, 0))
-        else
-           
-            local delta = tick() - LastUpdate
-            local alpha = 1 - math.pow(1 - speed, delta * 60 * 4) 
-            local easedProgress = applyEasing(alpha, Settings.EasingStyle, Settings.EasingDirection)
-            local currentMousePos = newVector2(Mouse.X, Mouse.Y)
-            local newPos = currentMousePos:Lerp(targetPos, easedProgress)
-            updateMousePosition(newVector3(newPos.X, newPos.Y, 0))
-        end
+        local newPos = currentMousePos:Lerp(targetPos, easedProgress)
+        updateMousePosition(newVector3(newPos.X, newPos.Y, 0))
         LastUpdate = tick()
     end
 end
@@ -730,6 +725,7 @@ local function setupTool(tool)
     end
 end
 
+
 me.Backpack.ChildAdded:Connect(function(child)
     setupTool(child)
 end)
@@ -738,6 +734,7 @@ for _, tool in pairs(me.Backpack:GetChildren()) do
     setupTool(tool)
 end
 
+
 if me.Character then
     local tool = me.Character:FindFirstChildOfClass("Tool")
     if tool then
@@ -745,11 +742,13 @@ if me.Character then
     end
 end
 
+
 me.CharacterAdded:Connect(function(character)
     character.ChildAdded:Connect(function(child)
         setupTool(child)
     end)
 end)
+
 
 threading.RenderStepped:Connect(function()
     if not getgenv().Holy.Combat.ForceHit.LinkedToCamlock then
