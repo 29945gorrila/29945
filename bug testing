@@ -361,16 +361,16 @@ local function handleMouseTp(deltaTime)
     local screenPos, onScreen = Camera:WorldToViewportPoint(predictedPosition)
 
     if onScreen and MainEvent then
-        local speed = math.clamp(Settings.MouseTpSmoothing(), 0, 1) -- Smoothness value between 0 and 1
+        local speed = math.clamp(Settings.MouseTpSmoothing(), 0, 1) 
         local targetPos = newVector2(screenPos.X, screenPos.Y)
 
-        -- If smoothness is exactly 1, snap directly to the target position
-        if speed == 1 then
+       
+        if math.abs(speed - 1) < 0.001 then
             updateMousePosition(newVector3(targetPos.X, targetPos.Y, 0))
         else
-            -- For smoothness < 1, use lerp with even faster response
+           
             local delta = tick() - LastUpdate
-            local alpha = 1 - math.pow(1 - speed, delta * 60 * 3) -- Increased multiplier to 3 for snappier movement
+            local alpha = 1 - math.pow(1 - speed, delta * 60 * 4) 
             local easedProgress = applyEasing(alpha, Settings.EasingStyle, Settings.EasingDirection)
             local currentMousePos = newVector2(Mouse.X, Mouse.Y)
             local newPos = currentMousePos:Lerp(targetPos, easedProgress)
