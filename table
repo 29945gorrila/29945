@@ -1,0 +1,90 @@
+getgenv().Holy = {
+    Options = {
+        Intro = true,
+        UpdateNotification = true,
+        Type = "Target",
+    },
+    
+    Keybinds = {
+        Aimbot = "C",
+        Resolver = "H",
+        Flip360 = "V",
+        TriggerBot = "T",
+    },
+    
+    Combat = {
+        Aimbot = {
+            Enabled = true,
+            Part = "Head",
+            PredictionX = 0.17,
+            PredictionY = 0.17,
+            Smoothness = 0.058,
+            PredictionAdjuster = false,
+            MultipleParts = {
+                Enabled = false,
+                Parts = {"Head", "UpperTorso", "HumanoidRootPart", "LowerTorso"},
+            },
+            MouseTp = {
+                Enabled = false,
+                Part = "Head",
+                Smoothness = 0.2,
+                PredictionX = 0.2,
+                PredictionY = 0.2,
+            },
+        },
+        Silent = {
+            Enabled = true,
+            Part = "Head",
+            Prediction = 0.025,
+            PredictionAdjuster = false,
+            HitChance = 100,
+            MultipleParts = {
+                Enabled = false,
+                Parts = {"Head", "UpperTorso", "HumanoidRootPart", "LowerTorso"},
+            },
+            Offsets = {
+                Jump = {Amount = -0.19},
+                Fall = {Amount = 0},
+                Head = {Amount = 0.245},
+            },
+        },
+        ["360"] = {
+            Enabled = true,
+            Speed = 4700,
+        },
+        TriggerBot = {
+            Enabled = true,
+            Range = 1000,
+            Box = {
+                X = 2.3,
+                Y = 5,
+                Z = 1
+            },
+            Prediction = 0.1,
+            UseDelay = true,
+            Delay = 0.05,
+            Radius = 50,
+        },
+        ForceHit = {
+            Enabled = false,
+            HitParts = {"Head", "UpperTorso", "HumanoidRootPart"},
+            LinkedToCamlock = false,
+        },
+    },
+    
+    PredictionAdjuster = {
+        VelocityThreshold = 250,
+    },
+    
+    Checks = {
+        KnockedChecks = true,  -- 90% vroken
+        TargetDeath = false,
+        PlayerDeath = false,
+        WallCheck = false,
+        Resolver = {
+            Enabled = false,
+            Notification = true,
+        },
+    }
+}
+
