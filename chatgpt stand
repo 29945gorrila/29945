@@ -1,0 +1,439 @@
+-- Services
+local Players = game:GetService("Players")
+local RunService = game:GetService("RunService")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local LocalPlayer = Players.LocalPlayer
+local Camera = workspace.CurrentCamera
+
+-- Variables
+local controller_username = "" -- Set this to the username of the controller if not using local player control
+local localPlayerControl = true -- Set to true to let local player control for testing
+local targetPlayer = nil
+local killAuraEnabled = false
+local preferredWeapon = "[Rifle]" -- Preferred item to auto-buy (also known as [AUG])
+local teleportEnabled = true -- Tracks if random teleporting is active
+local controllerPlayer = nil -- The player designated as the controller
+
+-- Utility Functions
+local utility = {
+    instance_new = function(class, properties)
+        local instance = Instance.new(class)
+        for key, value in pairs(properties or {}) do
+            instance[key] = value
+        end
+        return instance
+    end
+}
+
+-- Function to get player by username
+local function getPlayerByUsername(username)
+    for _, player in pairs(Players:GetPlayers()) do
+        if player.Name:lower() == username:lower() then
+            return player
+        end
+    end
+    return nil
+end
+
+-- Notification Function
+local function notify(title, text, duration)
+    game:GetService("StarterGui"):SetCore("SendNotification", {
+        Title = title,
+        Text = text,
+        Duration = duration or 5
+    })
+end
+
+-- Function to find a descendant by name anywhere in workspace
+local function findDescendantInWorkspace(name)
+    for _, descendant in pairs(workspace:GetDescendants()) do
+        if descendant.Name == name then
+            return descendant
+        end
+    end
+    return nil
+end
+
+-- Auto Buy Function (Search anywhere in workspace)
+local function autoBuyWeapon()
+    local riflePart = findDescendantInWorkspace("[Rifle] - 1694")
+    local ammoPart = findDescendantInWorkspace("5 [Rifle Ammo] - $273")
+    
+    if not riflePart or not ammoPart then
+        notify("Auto Buy", "Rifle or Ammo part not found anywhere in workspace!", 5)
+        return
+    end
+
+    local rifleClickDetector = riflePart:FindFirstChildOfClass("ClickDetector")
+    local ammoClickDetector = ammoPart:FindFirstChildOfClass("ClickDetector")
+    if not rifleClickDetector or not ammoClickDetector then
+        notify("Auto Buy", "ClickDetectors not found on Rifle or Ammo!", 5)
+        return
+    end
+
+    if LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart") then
+        local localHRP = LocalPlayer.Character.HumanoidRootPart
+
+        -- Buy Rifle
+        localHRP.CFrame = CFrame.new(riflePart.Position + Vector3.new(0, 5, 0))
+        task.wait(0.5)
+        fireclickdetector(rifleClickDetector)
+        notify("Auto Buy", "Attempted to buy " .. preferredWeapon .. "!", 5)
+
+        -- Buy Ammo
+        task.wait(1) -- Delay to ensure rifle purchase completes
+        localHRP.CFrame = CFrame.new(ammoPart.Position + Vector3.new(0, 5, 0))
+        task.wait(0.5)
+        fireclickdetector(ammoClickDetector)
+        notify("Auto Buy", "Attempted to buy rifle ammo!", 5)
+
+        -- Equip the rifle if purchased
+        local weapon = LocalPlayer.Backpack:WaitForChild(preferredWeapon, 5) or LocalPlayer.Backpack:WaitForChild("[AUG]", 5)
+        if weapon then
+            LocalPlayer.Character.Humanoid:EquipTool(weapon)
+        end
+    else
+        notify("Auto Buy", "Character not ready for purchase!", 5)
+    end
+end
+
+-- Auto Reload Function
+local function autoReload()
+    local character = LocalPlayer.Character
+    if not character then return end
+    local gun = character:FindFirstChildOfClass("Tool")
+    if gun and gun:FindFirstChild("Ammo") and gun.Ammo.Value == 0 then
+        ReplicatedStorage:FindFirstChild("MainEvent"):FireServer("Reload", gun)
+    end
+end
+
+-- Function to get the controller's HumanoidRootPart
+local function getControllerRoot()
+    return controllerPlayer and controllerPlayer.Character and controllerPlayer.Character:FindFirstChild("HumanoidRootPart")
+end
+
+-- Random Teleport Function (10k x 10k area around controller)
+local function randomTeleportAroundController(localHRP)
+    local controllerRoot = getControllerRoot()
+    if not controllerRoot then return end
+
+    local offsetX = math.random(-5000, 5000) -- -5k to 5k studs (10k total width)
+    local offsetZ = math.random(-5000, 5000) -- -5k to 5k studs (10k total depth)
+    local newPosition = controllerRoot.Position + Vector3.new(offsetX, 10, offsetZ) -- 10 studs above ground
+    localHRP.CFrame = CFrame.new(newPosition)
+end
+
+-- Setup Random Teleporting
+local function setupRandomTeleporting()
+    local teleportInterval = 0.0001 -- Teleport every 0.0001 seconds (effectively every frame)
+    local lastTeleportTime = 0
+
+    RunService.RenderStepped:Connect(function(deltaTime)
+        if not teleportEnabled then return end
+        local localCharacter = LocalPlayer.Character
+        local localHRP = localCharacter and localCharacter:FindFirstChild("HumanoidRootPart")
+        
+        if localHRP and not killAuraEnabled then -- Only teleport randomly if no kill aura active
+            lastTeleportTime = lastTeleportTime + deltaTime
+            if lastTeleportTime >= teleportInterval then
+                randomTeleportAroundController(localHRP)
+                lastTeleportTime = 0
+            end
+        end
+    end)
+end
+
+-- Setup Controller
+local function setupController()
+    if localPlayerControl then
+        controllerPlayer = LocalPlayer
+    else
+        controllerPlayer = getPlayerByUsername(controller_username)
+        if not controllerPlayer then
+            notify("Controller Error", "Controller '" .. controller_username .. "' not found!", 5)
+            controllerPlayer = LocalPlayer
+        end
+    end
+end
+
+-- Wait for Game to Load and Initial Buy
+local function waitForGameLoad()
+    notify("Game Status", "Waiting for game to load...", 5)
+    repeat
+        task.wait(1)
+    until LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart")
+
+    for _, obj in pairs(workspace:GetDescendants()) do
+        if obj:IsA("Seat") or obj:IsA("VehicleSeat") then
+            obj:Destroy()
+        end
+    end
+
+    local hasForceField = LocalPlayer.Character:FindFirstChildOfClass("ForceField") ~= nil
+    while hasForceField do
+        task.wait(1)
+        hasForceField = LocalPlayer.Character:FindFirstChildOfClass("ForceField") ~= nil
+    end
+
+    notify("Game Status", "Game loaded! Checking for " .. preferredWeapon .. " in 5 seconds...", 5)
+    task.wait(5)
+
+    local hasPreferredWeapon = false
+    local preferredTool = nil
+    for _, item in pairs(LocalPlayer.Backpack:GetChildren()) do
+        if item:IsA("Tool") and (item.Name == "[Rifle]" or item.Name == "[AUG]") then
+            hasPreferredWeapon = true
+            preferredTool = item
+            break
+        end
+    end
+
+    if hasPreferredWeapon and preferredTool then
+        LocalPlayer.Character.Humanoid:EquipTool(preferredTool)
+        notify("Weapon Check", "Equipped " .. preferredTool.Name .. " from backpack!", 5)
+    else
+        notify("Weapon Check", preferredWeapon .. " not found! Attempting to buy...", 5)
+        autoBuyWeapon()
+    end
+
+    setupController()
+    setupRandomTeleporting()
+end
+
+-- Bring Function (Grab, Teleport to Controller, Drop)
+local function bringTarget(targetUsername)
+    local target = getPlayerByUsername(targetUsername)
+    if not target or target == LocalPlayer then
+        notify("Bring Error", "Invalid target or cannot bring self!", 5)
+        return
+    end
+
+    local targetCharacter = target.Character
+    local targetHRP = targetCharacter and targetCharacter:FindFirstChild("HumanoidRootPart")
+    local localCharacter = LocalPlayer.Character
+    local localHRP = localCharacter and localCharacter:FindFirstChild("HumanoidRootPart")
+    local controllerRoot = getControllerRoot()
+
+    if not targetHRP or not localHRP or not controllerRoot then
+        notify("Bring Error", "Target, LocalPlayer, or Controller not ready!", 5)
+        return
+    end
+
+    -- "Grab" the target by parenting their HRP to LocalPlayer's character
+    targetHRP.Parent = localCharacter
+    targetHRP.CFrame = localHRP.CFrame * CFrame.new(0, 5, 0) -- Position above LocalPlayer
+
+    -- Teleport to controller
+    localHRP.CFrame = controllerRoot.CFrame * CFrame.new(0, 0, 5) -- 5 studs in front of controller
+    task.wait(0.5) -- Brief delay to ensure teleport
+
+    -- "Drop" the target by restoring their HRP's parent
+    targetHRP.Parent = targetCharacter
+    notify("Bring", "Brought " .. targetUsername .. " to controller!", 5)
+end
+
+-- Chat command handler
+Players.LocalPlayer.Chatted:Connect(function(message)
+    local canControl = (localPlayerControl and Players.LocalPlayer == LocalPlayer) or 
+                       (not localPlayerControl and getPlayerByUsername(controller_username) == Players.LocalPlayer)
+    
+    if canControl then
+        local args = message:split(" ")
+        if args[1] == "*hkill" and args[2] then
+            local targetUsername = args[2]
+            targetPlayer = getPlayerByUsername(targetUsername)
+            if targetPlayer and targetPlayer ~= LocalPlayer then
+                killAuraEnabled = true
+                notify("Kill Aura", "Targeting " .. targetUsername .. "!", 5)
+            end
+        elseif args[1] == "*stop" then
+            killAuraEnabled = false
+            targetPlayer = nil
+            Camera.CameraType = Enum.CameraType.Custom -- Reset camera to default
+            notify("Kill Aura", "Stopped targeting!", 5)
+        elseif args[1] == ".s" then
+            if LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart") then
+                local hrp = LocalPlayer.Character.HumanoidRootPart
+                hrp.CFrame = CFrame.new(Vector3.new(100000000, 100000000, 100000000))
+                hrp.Anchored = true
+                teleportEnabled = false
+                Camera.CameraType = Enum.CameraType.Custom -- Reset camera
+                notify("Teleport", "Teleported far away and anchored!", 5)
+            end
+        elseif args[1] == ".uns" then
+            if LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart") then
+                local hrp = LocalPlayer.Character.HumanoidRootPart
+                hrp.Anchored = false
+                teleportEnabled = true
+                notify("Teleport", "Unanchored and random teleporting resumed!", 5)
+            end
+        elseif args[1] == "*bring" and args[2] then
+            local targetUsername = args[2]
+            bringTarget(targetUsername)
+        end
+    end
+end)
+
+-- Auto-Stomp Function (Extended to 5 seconds)
+local function autoStomp(target)
+    if target and target.Character and target.Character:FindFirstChild("BodyEffects") and target.Character.BodyEffects:FindFirstChild("K.O").Value then
+        local localCharacter = LocalPlayer.Character
+        local tool = localCharacter and localCharacter:FindFirstChildWhichIsA("Tool")
+        if not tool then return end
+        local startTime = tick()
+        while tick() - startTime < 5 do -- Increased from 2 to 5 seconds
+            if target.Character and target.Character:FindFirstChild("UpperTorso") then
+                localCharacter.HumanoidRootPart.CFrame = CFrame.new(target.Character.UpperTorso.Position + Vector3.new(0, 1, 0))
+                ReplicatedStorage:FindFirstChild("MainEvent"):FireServer("Stomp")
+            end
+            task.wait(0.1)
+        end
+    end
+end
+
+-- Random Teleport Function for Kill Aura
+local function randomTeleportAroundTarget(targetHRP, localHRP)
+    local radius = 150
+    local angle = math.random() * 2 * math.pi
+    local offsetX = math.cos(angle) * math.random(0, radius)
+    local offsetZ = math.sin(angle) * math.random(0, radius)
+    local newPosition = targetHRP.Position + Vector3.new(offsetX, 0, offsetZ)
+    localHRP.CFrame = CFrame.new(newPosition)
+    task.wait(0.02)
+end
+
+-- Kill Aura, Teleport, and Fixed Camera Spectate Logic
+RunService.RenderStepped:Connect(function()
+    if killAuraEnabled and targetPlayer and targetPlayer.Character and targetPlayer.Character:FindFirstChild("HumanoidRootPart") then
+        local character = targetPlayer.Character
+        local humanoid = character:FindFirstChild("Humanoid")
+        local humanoidRootPart = character.HumanoidRootPart
+        local localCharacter = LocalPlayer.Character
+        local localHRP = localCharacter and localCharacter:FindFirstChild("HumanoidRootPart")
+
+        if localHRP then
+            -- Fixed camera position (still and stable)
+            Camera.CameraType = Enum.CameraType.Scriptable
+            local cameraOffset = Vector3.new(10, 5, 10) -- Fixed offset from target
+            local cameraPos = humanoidRootPart.Position + cameraOffset
+            Camera.CFrame = CFrame.new(cameraPos, humanoidRootPart.Position) -- Static, no smoothing
+
+            if humanoid.Health >= 1 then
+                randomTeleportAroundTarget(humanoidRootPart, localHRP)
+            end
+
+            if humanoid.Health < 1 then
+                localHRP.CFrame = humanoidRootPart.CFrame * CFrame.new(0, 3, 0)
+                autoStomp(targetPlayer)
+                task.wait(5.2) -- Increased from 2.2 to 5.2 to match longer stomp duration
+                return
+            end
+
+            if game.PlaceId == 2788229376 then
+                local bodyEffects = character:FindFirstChild("BodyEffects")
+                if bodyEffects then
+                    local ko = bodyEffects:FindFirstChild("K.O")
+                    if ko and not ko.Value and localHRP then
+                        local head = character:FindFirstChild("Head")
+                        if head then
+                            local tool = localCharacter:FindFirstChildOfClass("Tool")
+                            if tool and tool:FindFirstChild("Handle") then
+                                autoReload()
+                                local predictedPosition = humanoidRootPart.Position + humanoidRootPart.Velocity * 0.2
+                                ReplicatedStorage.MainEvent:FireServer(
+                                    "ShootGun",
+                                    tool.Handle,
+                                    localHRP.Position,
+                                    predictedPosition,
+                                    head,
+                                    (predictedPosition - localHRP.Position).Unit
+                                )
+                            end
+                        end
+                    end
+                end
+            end
+        end
+    end
+end)
+
+-- Handle target player leaving
+Players.PlayerRemoving:Connect(function(player)
+    if player == targetPlayer then
+        killAuraEnabled = false
+        targetPlayer = nil
+        Camera.CameraType = Enum.CameraType.Custom -- Reset camera
+        notify("Kill Aura", player.Name .. " left the game! Targeting stopped.", 5)
+    elseif player == controllerPlayer and not localPlayerControl then
+        notify("Controller Error", "Controller left! Falling back to LocalPlayer.", 5)
+        controllerPlayer = LocalPlayer
+    end
+end)
+
+-- Handle target player death
+local function setupDeathListener(player)
+    if player and player.Character then
+        local humanoid = player.Character:FindFirstChild("Humanoid")
+        if humanoid then
+            humanoid.Died:Connect(function()
+                if player == targetPlayer and killAuraEnabled then
+                    task.delay(5.2, function() -- Increased to match longer stomp
+                        if player == targetPlayer and killAuraEnabled then
+                            notify("Kill Aura", player.Name .. " died! Awaiting respawn...", 3)
+                        end
+                    end)
+                end
+            end)
+        end
+    end
+end
+
+local lastTarget = nil
+RunService.Heartbeat:Connect(function()
+    if targetPlayer and targetPlayer ~= lastTarget then
+        setupDeathListener(targetPlayer)
+        lastTarget = targetPlayer
+    end
+end)
+
+-- Handle LocalPlayer Death and Check for Rifle
+LocalPlayer.CharacterAdded:Connect(function(character)
+    task.wait(1)
+    if teleportEnabled and controllerPlayer then
+        local localHRP = character:FindFirstChild("HumanoidRootPart")
+        if localHRP then
+            localHRP.Anchored = false
+        end
+    end
+
+    -- Check for rifle after respawn
+    local hasRifle = false
+    for _, item in pairs(LocalPlayer.Backpack:GetChildren()) do
+        if item:IsA("Tool") and (item.Name == "[Rifle]" or item.Name == "[AUG]") then
+            hasRifle = true
+            LocalPlayer.Character.Humanoid:EquipTool(item)
+            notify("Weapon Check", "Found and equipped " .. item.Name .. " after respawn!", 5)
+            break
+        end
+    end
+
+    if not hasRifle then
+        for _, item in pairs(character:GetChildren()) do
+            if item:IsA("Tool") and (item.Name == "[Rifle]" or item.Name == "[AUG]") then
+                hasRifle = true
+                LocalPlayer.Character.Humanoid:EquipTool(item)
+                notify("Weapon Check", "Found and equipped " .. item.Name .. " in character after respawn!", 5)
+                break
+            end
+        end
+    end
+
+    if not hasRifle then
+        notify("Weapon Check", "No rifle found after respawn! Attempting to buy...", 5)
+        autoBuyWeapon()
+    end
+end)
+
+-- Initial Setup
+task.spawn(waitForGameLoad)
+notify("Script Status", "BTP - Controller Kill Script Loaded (Local Control: " .. tostring(localPlayerControl) .. ")", 5)
