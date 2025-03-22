@@ -9,6 +9,16 @@ if getgenv().Loaded == true then
     return
 end
 
+local Players = game:GetService("Players")
+local StarterGui = game:GetService("StarterGui")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local InputService = game:GetService("UserInputService")
+local RunService = game:GetService("RunService")
+local TweenService = game:GetService("TweenService")
+local Camera = workspace.CurrentCamera
+local LocalPlayer = Players.LocalPlayer
+local Mouse = LocalPlayer:GetMouse()
+
 if getgenv().Holy.Options.Intro then
     local ImageIdfr = "rbxassetid://138494005080029" -- fix next update
     local Intro = {
@@ -17,7 +27,7 @@ if getgenv().Holy.Options.Intro then
         ImageLabel = Instance.new("ImageLabel")
     }
     
-    function Tween(Object, Size1, Size2, Size3, Size4, Speed)
+    local function Tween(Object, Size1, Size2, Size3, Size4, Speed)
         Object:TweenSize(UDim2.new(Size1, Size2, Size3, Size4), Enum.EasingDirection.InOut, Enum.EasingStyle.Sine, Speed, true)
     end
     
@@ -59,17 +69,7 @@ if getgenv().Holy.Options.Intro then
     BlurEffect:Destroy()
 end
 
-local Players = game:GetService("Players")
-local StarterGui = game:GetService("StarterGui")
-local ReplicatedStorage = game:GetService("ReplicatedStorage")
-local InputService = game:GetService("UserInputService")
-local RunService = game:GetService("RunService")
-local Camera = workspace.CurrentCamera
-local LocalPlayer = Players.LocalPlayer
-local Mouse = LocalPlayer:GetMouse()
-
-
--- thank you for game offsets random discrod serwervr
+-- Game Detection
 local Games = {
     [2788229376]  = { Name = "Da Hood", Argument = "UpdateMousePosI2", Remote = "MainEvent" },
     [16033173781] = {Name = "Da Hood Macro", Argument = "UpdateMousePosI2", Remote = "MainEvent"},
@@ -91,6 +91,7 @@ local Games = {
 local mousePositionArgument = Games[game.PlaceId] or { Argument = "UpdateMousePos", Remote = "MainEvent" }
 local MainEvent = ReplicatedStorage:FindFirstChild(mousePositionArgument.Remote)
 
+-- Variables
 local Toggled = false
 local IsLocking, TargetPlayer = false, nil
 local Toggle360, TotalRotation, FullCircleRotation = false, 0, 2 * math.pi
@@ -99,6 +100,35 @@ local TriggerBotToggled = false
 local TriggerBotTarget = nil
 local ForceHitTarget = nil
 
+-- Visuals Setup
+local Drawings = { Boxes = {}, Names = {}, Crosshair = {}, DamageTexts = {} }
+local toolCircle, lockNotification
+local pulseState = { CurrentTransparency = 0.2, Increasing = true }
+local lastRender = 0
+
+if getgenv().Holy.Visuals.Enabled then
+    if not Drawing then
+        warn("Drawing API not available. Visual features require an executor with Drawing support.")
+    else
+        toolCircle = Drawing.new("Circle")
+        local defaultSettings = getgenv().Holy.Visuals.ToolCircle.ToolSettings["Default"]
+        toolCircle.Thickness = defaultSettings.Thickness
+        toolCircle.Color = defaultSettings.Color
+        toolCircle.NumSides = defaultSettings.NumSides
+        toolCircle.Radius = defaultSettings.Radius
+        toolCircle.Filled = defaultSettings.Filled
+        toolCircle.Transparency = pulseState.CurrentTransparency
+        toolCircle.Visible = false
+
+        if getgenv().Holy.Visuals.Crosshair.Enabled then
+            for i = 1, 8 do
+                Drawings.Crosshair[i] = Drawing.new("Line")
+            end
+        end
+    end
+end
+
+-- Settings
 local Settings = {
     Keybind = Enum.KeyCode[getgenv().Holy.Keybinds.Aimbot],
     Smoothing = getgenv().Holy.Combat.Aimbot.Smoothness,
@@ -123,6 +153,7 @@ local SilentAim = {
     TargetPlayer = nil,
 }
 
+-- Utility Functions
 local isA = game.IsA
 local findFirstChild = game.FindFirstChild
 local findPartOnRayWithIgnoreList = workspace.FindPartOnRayWithIgnoreList
@@ -178,6 +209,14 @@ local function applyEasing(t, easingStyle, easingDirection)
     elseif easingDirection == 'InOut' then easedValue = t < 0.5 and ease(2 * t) / 2 or 1 - ease(2 * (1 - t)) / 2
     else easedValue = t end
     return easedValue
+end
+
+local function solve(angle, radius)
+    return Vector2.new(math.sin(math.rad(angle)) * radius, math.cos(math.rad(angle)) * radius)
+end
+
+local function smoothTrace(targetPos, currentPos, speed)
+    return currentPos:Lerp(targetPos, speed)
 end
 
 local function isPlayerAlive(player)
@@ -266,7 +305,6 @@ local function resolvePartVelocity(part)
     return (currentPosition - lastPosition) / 0.145
 end
 
-
 local function getAimAssistPredictedPosition(target, isMouseTp)
     local partName = isMouseTp and getgenv().Holy.Combat.Aimbot.MouseTp.Part or getgenv().Holy.Combat.Aimbot.Part
     local character = target.Character
@@ -294,6 +332,290 @@ local function getAimAssistPredictedPosition(target, isMouseTp)
     end
 end
 
+-- Visual Functions
+local function updatePulse()
+    if not getgenv().Holy.Visuals.Pulse.Enabled then return end
+    local pulse = getgenv().Holy.Visuals.Pulse
+    if pulseState.Increasing then
+        pulseState.CurrentTransparency = pulseState.CurrentTransparency + pulse.Speed
+        if pulseState.CurrentTransparency >= pulse.MaxTransparency then
+            pulseState.Increasing = false
+        end
+    else
+        pulseState.CurrentTransparency = pulseState.CurrentTransparency - pulse.Speed
+        if pulseState.CurrentTransparency <= pulse.MinTransparency then
+            pulseState.Increasing = true
+        end
+    end
+    if toolCircle then toolCircle.Transparency = pulseState.CurrentTransparency end
+end
+
+local function createESP(player)
+    if not getgenv().Holy.Visuals.ESP.Enabled or player == LocalPlayer then return end
+    
+    local box = {
+        Left = Drawing.new("Line"),
+        Right = Drawing.new("Line"),
+        Top = Drawing.new("Line"),
+        Bottom = Drawing.new("Line")
+    }
+    for _, line in pairs(box) do
+        line.Thickness = 1
+        line.Color = getgenv().Holy.Visuals.ESP.BoxColor
+        line.Transparency = pulseState.CurrentTransparency
+        line.Visible = true
+    end
+    
+    local name = Drawing.new("Text")
+    name.Size = 16
+    name.Color = getgenv().Holy.Visuals.ESP.BoxColor
+    name.Outline = true
+    name.Center = true
+    name.Transparency = pulseState.CurrentTransparency
+    name.Visible = true
+    
+    Drawings.Boxes[player] = box
+    Drawings.Names[player] = name
+end
+
+local function removeESP(player)
+    local box = Drawings.Boxes[player]
+    if box then
+        for _, line in pairs(box) do
+            line:Remove()
+        end
+        Drawings.Boxes[player] = nil
+    end
+    
+    local name = Drawings.Names[player]
+    if name then
+        name:Remove()
+        Drawings.Names[player] = nil
+    end
+end
+
+local function createDamageText(username, partName, damage)
+    if not getgenv().Holy.Visuals.HitNotifications.Enabled then return end
+    local text = Drawing.new("Text")
+    text.Size = 20
+    text.Color = getgenv().Holy.Visuals.HitNotifications.Color
+    text.Outline = true
+    text.Center = true
+    text.Text = username .. " was hit at " .. partName .. " for " .. tostring(math.floor(damage))
+    text.Position = getgenv().Holy.Visuals.HitNotifications.BasePosition
+    text.Transparency = pulseState.CurrentTransparency
+    text.Visible = true
+    
+    local textWidth = text.TextBounds.X
+    if text.Position.X + textWidth > Camera.ViewportSize.X then
+        text.Position = Vector2.new(Camera.ViewportSize.X - textWidth, text.Position.Y)
+    elseif text.Position.X < 0 then
+        text.Position = Vector2.new(0, text.Position.Y)
+    end
+    
+    table.insert(Drawings.DamageTexts, {text = text, time = tick(), targetPos = getgenv().Holy.Visuals.HitNotifications.BasePosition})
+end
+
+local function createLockNotification(username)
+    if lockNotification then lockNotification:Remove() end
+    lockNotification = Drawing.new("Text")
+    lockNotification.Size = 20
+    lockNotification.Color = getgenv().Holy.Visuals.HitNotifications.Color
+    lockNotification.Outline = true
+    lockNotification.Center = true
+    lockNotification.Text = "Locked onto " .. username
+    lockNotification.Position = Vector2.new(-995, -1020)
+    lockNotification.Transparency = pulseState.CurrentTransparency
+    lockNotification.Visible = true
+end
+
+local function applyGunChams(tool)
+    if not getgenv().Holy.Visuals.GunChams.Enabled or not tool:IsA("Tool") or not tool:FindFirstChild("Handle") then return end
+    local handle = tool.Handle
+    local existingHighlight = handle:FindFirstChildOfClass("Highlight")
+    if existingHighlight then existingHighlight:Destroy() end
+
+    local highlight = Instance.new("Highlight")
+    highlight.FillColor = getgenv().Holy.Visuals.GunChams.Color
+    highlight.OutlineColor = getgenv().Holy.Visuals.GunChams.Color
+    highlight.FillTransparency = pulseState.CurrentTransparency
+    highlight.OutlineTransparency = 0
+    highlight.Parent = handle
+
+    spawn(function()
+        while tool.Parent == LocalPlayer.Character and highlight.Parent do
+            highlight.FillTransparency = pulseState.CurrentTransparency
+            task.wait(0.05)
+        end
+        highlight:Destroy()
+    end)
+end
+
+local function removeGunChams(tool)
+    if tool:IsA("Tool") and tool:FindFirstChild("Handle") then
+        local handle = tool.Handle
+        local existingHighlight = handle:FindFirstChildOfClass("Highlight")
+        if existingHighlight then existingHighlight:Destroy() end
+    end
+end
+
+local function updateToolCircleAndCrosshair()
+    if not getgenv().Holy.Visuals.Enabled then return end
+    
+    local character = LocalPlayer.Character
+    local tool = character and character:FindFirstChildOfClass("Tool")
+    local position
+    
+    if getgenv().Holy.Visuals.ToolCircle.Enabled and tool then
+        local toolSettings = getgenv().Holy.Visuals.ToolCircle.ToolSettings
+        local currentSettings = toolSettings[tool.Name] or toolSettings["Default"]
+        
+        toolCircle.Thickness = currentSettings.Thickness
+        toolCircle.Color = currentSettings.Color
+        toolCircle.NumSides = currentSettings.NumSides
+        toolCircle.Radius = currentSettings.Radius
+        toolCircle.Filled = currentSettings.Filled
+        
+        local handle = tool:FindFirstChild("Handle")
+        if handle then
+            local toolTipPos = handle.Position + handle.CFrame:VectorToWorldSpace(Vector3.new(
+                currentSettings.OffsetX,
+                currentSettings.OffsetY,
+                currentSettings.OffsetZ
+            ))
+            local screenPos, onScreen = Camera:WorldToViewportPoint(toolTipPos)
+            if onScreen and screenPos.Z > 0 then
+                position = Vector2.new(screenPos.X, screenPos.Y)
+                toolCircle.Position = smoothTrace(position, toolCircle.Position, 0.2)
+                toolCircle.Visible = true
+            end
+        end
+    end
+    
+    if not position then
+        local crosshair = getgenv().Holy.Visuals.Crosshair
+        position = (crosshair.Mode == 'center' and Camera.ViewportSize / 2 or
+                   crosshair.Mode == 'mouse' and getMouseLocation(InputService) or
+                   Vector2.new(0, 0))
+        if getgenv().Holy.Visuals.ToolCircle.Enabled then
+            toolCircle.Position = smoothTrace(position, toolCircle.Position, 0.2)
+            toolCircle.Visible = true
+        end
+    end
+
+    if getgenv().Holy.Visuals.Crosshair.Enabled then
+        local crosshair = getgenv().Holy.Visuals.Crosshair
+        local currentTick = tick()
+        if currentTick - lastRender > crosshair.RefreshRate then
+            lastRender = currentTick
+            
+            for idx = 1, 4 do
+                local outline = Drawings.Crosshair[idx]
+                local inline = Drawings.Crosshair[idx + 4]
+                local angle = (idx - 1) * 90
+                local length = crosshair.Length
+    
+                if crosshair.Spin then
+                    local spinAngle = -currentTick * crosshair.SpinSpeed % crosshair.SpinMax
+                    angle = angle + TweenService:GetValue(spinAngle / 360, crosshair.SpinStyle, Enum.EasingDirection.InOut) * 360
+                end
+    
+                if crosshair.Resize then
+                    local resizeLength = tick() * crosshair.ResizeSpeed % 180
+                    length = crosshair.ResizeMin + math.sin(math.rad(resizeLength)) * crosshair.ResizeMax
+                end
+    
+                inline.Visible = true
+                inline.Color = crosshair.Color
+                inline.From = position + solve(angle, crosshair.Radius)
+                inline.To = position + solve(angle, crosshair.Radius + length)
+                inline.Thickness = crosshair.Width
+                inline.Transparency = pulseState.CurrentTransparency
+    
+                outline.Visible = true
+                outline.From = position + solve(angle, crosshair.Radius - 1)
+                outline.To = position + solve(angle, crosshair.Radius + length + 1)
+                outline.Thickness = crosshair.Width + 1.5
+                outline.Transparency = pulseState.CurrentTransparency
+            end
+        end
+    end
+end
+
+local function updateESP()
+    if not getgenv().Holy.Visuals.ESP.Enabled then
+        for _, player in pairs(Drawings.Boxes) do
+            removeESP(player)
+        end
+        return
+    end
+
+    for _, player in pairs(Players:GetPlayers()) do
+        if player ~= LocalPlayer then
+            local box = Drawings.Boxes[player]
+            local name = Drawings.Names[player]
+            local character = player.Character
+            
+            if not box or not name then
+                createESP(player)
+                box = Drawings.Boxes[player]
+                name = Drawings.Names[player]
+            end
+            
+            if character and character:FindFirstChild("HumanoidRootPart") and character:FindFirstChild("Humanoid") and character.Humanoid.Health > 0 then
+                local rootPart = character.HumanoidRootPart
+                local size = character:GetExtentsSize()
+                local cf = rootPart.CFrame
+                local top = Camera:WorldToViewportPoint((cf * CFrame.new(0, size.Y/2, 0)).Position)
+                local bottom = Camera:WorldToViewportPoint((cf * CFrame.new(0, -size.Y/2, 0)).Position)
+                local screenSize = bottom.Y - top.Y
+                local boxWidth = screenSize * 0.65
+                local boxPosition = Vector2.new(top.X - boxWidth/2, top.Y)
+                local boxSize = Vector2.new(boxWidth, screenSize)
+
+                if top.Z > 0 and bottom.Z > 0 then
+                    box.Left.From = boxPosition
+                    box.Left.To = boxPosition + Vector2.new(0, boxSize.Y)
+                    box.Left.Visible = true
+                    box.Left.Transparency = pulseState.CurrentTransparency
+
+                    box.Right.From = boxPosition + Vector2.new(boxSize.X, 0)
+                    box.Right.To = boxPosition + Vector2.new(boxSize.X, boxSize.Y)
+                    box.Right.Visible = true
+                    box.Right.Transparency = pulseState.CurrentTransparency
+
+                    box.Top.From = boxPosition
+                    box.Top.To = boxPosition + Vector2.new(boxSize.X, 0)
+                    box.Top.Visible = true
+                    box.Top.Transparency = pulseState.CurrentTransparency
+
+                    box.Bottom.From = boxPosition + Vector2.new(0, boxSize.Y)
+                    box.Bottom.To = boxPosition + Vector2.new(boxSize.X, boxSize.Y)
+                    box.Bottom.Visible = true
+                    box.Bottom.Transparency = pulseState.CurrentTransparency
+                    
+                    name.Text = player.DisplayName
+                    local headPos = Camera:WorldToViewportPoint((cf * CFrame.new(0, size.Y/2, 0)).Position)
+                    name.Position = Vector2.new(headPos.X + getgenv().Holy.Visuals.ESP.NameOffsetX, headPos.Y + getgenv().Holy.Visuals.ESP.NameOffsetY)
+                    name.Visible = true
+                    name.Transparency = pulseState.CurrentTransparency
+                else
+                    for _, line in pairs(box) do
+                        line.Visible = false
+                    end
+                    name.Visible = false
+                end
+            else
+                for _, line in pairs(box) do
+                    line.Visible = false
+                end
+                name.Visible = false
+            end
+        end
+    end
+end
+
+-- Main Loops
 RunService.Heartbeat:Connect(function(deltaTime)
     local aimbot = getgenv().Holy.Combat.Aimbot
     if TargetPlayer and IsLocking and TargetPlayer.Character and aimbot.Enabled then
@@ -376,6 +698,42 @@ local function handleMouseTp(deltaTime)
 end
 
 RunService.RenderStepped:Connect(function(deltaTime)
+    if getgenv().Holy.Visuals.Enabled then
+        updatePulse()
+        updateToolCircleAndCrosshair()
+        updateESP()
+
+        if getgenv().Holy.Visuals.HitNotifications.Enabled then
+            for i = #Drawings.DamageTexts, 1, -1 do
+                local dt = Drawings.DamageTexts[i]
+                local elapsed = tick() - dt.time
+                local fadeDuration = 1.5
+                dt.text.Transparency = pulseState.CurrentTransparency + (elapsed / fadeDuration) * (1 - pulseState.CurrentTransparency)
+                
+                dt.text.Position = smoothTrace(dt.targetPos, dt.text.Position, 0.1)
+                
+                local textWidth = dt.text.TextBounds.X
+                if dt.text.Position.X + textWidth > Camera.ViewportSize.X then
+                    dt.text.Position = Vector2.new(Camera.ViewportSize.X - textWidth, dt.text.Position.Y)
+                elseif dt.text.Position.X < 0 then
+                    dt.text.Position = Vector2.new(0, dt.text.Position.Y)
+                end
+                
+                if elapsed > fadeDuration then
+                    dt.text:Remove()
+                    table.remove(Drawings.DamageTexts, i)
+                    for j, remainingDt in ipairs(Drawings.DamageTexts) do
+                        remainingDt.targetPos = Vector2.new(-995, getgenv().Holy.Visuals.HitNotifications.BasePosition.Y + (j - 1) * getgenv().Holy.Visuals.HitNotifications.TextHeight)
+                    end
+                end
+            end
+        end
+
+        if lockNotification then
+            lockNotification.Transparency = pulseState.CurrentTransparency
+        end
+    end
+
     local combat = getgenv().Holy.Combat
     if Toggle360 and combat["360"].Enabled then
         local rotationIncrement = rad(combat["360"].Speed * deltaTime)
@@ -527,12 +885,14 @@ local function onChildAdded(child)
     if isA(child, "Tool") then
         if childActivatedConnection then childActivatedConnection:Disconnect() end
         childActivatedConnection = child.Activated:Connect(childActivatedFunction)
+        applyGunChams(child)
     end
 end
 
 local function onChildRemoved(child)
-    if isA(child, "Tool") and childActivatedConnection then
-        childActivatedConnection:Disconnect()
+    if isA(child, "Tool") then
+        if childActivatedConnection then childActivatedConnection:Disconnect() end
+        removeGunChams(child)
     end
 end
 
@@ -575,11 +935,19 @@ InputService.InputBegan:Connect(function(input, gameProcessedEvent)
                 SilentAim.Enabled = false
                 TargetPlayer = nil
                 SilentAim.TargetPlayer = nil
+            else
+                if getgenv().Holy.Visuals.HitNotifications.Enabled then
+                    createLockNotification(TargetPlayer.DisplayName)
+                end
             end
         else
             TargetPlayer = nil
             SilentAim.TargetPlayer = nil
             LastUpdate = tick()
+            if lockNotification then
+                lockNotification:Remove()
+                lockNotification = nil
+            end
         end
     elseif inputKeyCode == enumKeyCode[sub(upper(keyBind.Resolver), 1, 1)] then
         getgenv().Holy.Checks.Resolver.Enabled = not getgenv().Holy.Checks.Resolver.Enabled
@@ -617,16 +985,33 @@ RunService.Heartbeat:Connect(function()
             SilentAim.Enabled = getgenv().Holy.Combat.Silent.Enabled
             TargetPlayer = nil
             SilentAim.TargetPlayer = nil
+            if lockNotification then
+                lockNotification:Remove()
+                lockNotification = nil
+            end
         end
     end
 end)
 
+Players.PlayerAdded:Connect(function(player)
+    if getgenv().Holy.Visuals.ESP.Enabled then
+        createESP(player)
+    end
+end)
+
 Players.PlayerRemoving:Connect(function(leavingPlayer)
+    if getgenv().Holy.Visuals.ESP.Enabled then
+        removeESP(leavingPlayer)
+    end
     if leavingPlayer == TargetPlayer then
         Toggled = false
         SilentAim.Enabled = getgenv().Holy.Combat.Silent.Enabled
         TargetPlayer = nil
         SilentAim.TargetPlayer = nil
+        if lockNotification then
+            lockNotification:Remove()
+            lockNotification = nil
+        end
     elseif leavingPlayer == TriggerBotTarget then
         TriggerBotTarget = nil
     elseif leavingPlayer == ForceHitTarget then
@@ -634,7 +1019,25 @@ Players.PlayerRemoving:Connect(function(leavingPlayer)
     end
 end)
 
-getgenv().Loaded = true
+if getgenv().Holy.Visuals.ESP.Enabled then
+    for _, player in pairs(Players:GetPlayers()) do
+        createESP(player)
+    end
+end
+
+if LocalPlayer.Character then
+    for _, tool in ipairs(LocalPlayer.Backpack:GetChildren()) do
+        if tool:IsA("Tool") then
+            applyGunChams(tool)
+        end
+    end
+end
+
+LocalPlayer.Backpack.ChildRemoved:Connect(function(tool)
+    if tool:IsA("Tool") then
+        removeGunChams(tool)
+    end
+end)
 
 local plrs = game:GetService("Players")
 local repl = game:GetService("ReplicatedStorage")
@@ -725,7 +1128,6 @@ local function setupTool(tool)
     end
 end
 
-
 me.Backpack.ChildAdded:Connect(function(child)
     setupTool(child)
 end)
@@ -734,7 +1136,6 @@ for _, tool in pairs(me.Backpack:GetChildren()) do
     setupTool(tool)
 end
 
-
 if me.Character then
     local tool = me.Character:FindFirstChildOfClass("Tool")
     if tool then
@@ -742,16 +1143,16 @@ if me.Character then
     end
 end
 
-
 me.CharacterAdded:Connect(function(character)
     character.ChildAdded:Connect(function(child)
         setupTool(child)
     end)
 end)
 
-
 threading.RenderStepped:Connect(function()
     if not getgenv().Holy.Combat.ForceHit.LinkedToCamlock then
         get_closest_forcehit()
     end
 end)
+
+getgenv().Loaded = true
