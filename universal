@@ -1,0 +1,620 @@
+-- Services
+local Players = game:GetService("Players")
+local RunService = game:GetService("RunService")
+local UserInputService = game:GetService("UserInputService")
+local TweenService = game:GetService("TweenService")
+local Camera = workspace.CurrentCamera
+local LocalPlayer = Players.LocalPlayer
+local StarterGui = game:GetService("StarterGui")
+
+-- Ensure Drawing API is available
+if not Drawing then
+    warn("Drawing API not available. This script requires an executor with Drawing support.")
+    return
+end
+
+-- Check if already loaded and notify of update
+if getgenv().Loaded then
+    StarterGui:SetCore("SendNotification", {
+        Title = "Script Update",
+        Text = "Settings have been updated.",
+        Duration = 2,
+    })
+else
+    getgenv().Loaded = true
+    StarterGui:SetCore("SendNotification", {
+        Title = "Script Loaded",
+        Text = "Aimbot script initialized.",
+        Duration = 2,
+    })
+end
+
+-- Function to update settings from getgenv().Settings
+local function updateSettings()
+    local envSettings = getgenv().Settings or {}
+    local function mergeTables(default, new)
+        local result = {}
+        for k, v in pairs(default) do
+            if type(v) == "table" and new[k] and type(new[k]) == "table" then
+                result[k] = mergeTables(v, new[k])
+            else
+                result[k] = new[k] ~= nil and new[k] or v
+            end
+        end
+        return result
+    end
+    return mergeTables(DefaultSettings, envSettings)
+end
+
+-- Initial settings load
+local Settings = updateSettings()
+local Toggles = Settings.Toggles
+local AimbotSettings = Settings.AimbotSettings
+local crosshair = Settings.CrosshairSettings
+local gunChamColor = Settings.GunChamColor
+local toolCircleSettings = Settings.ToolCircleSettings
+local pulseSettings = Settings.PulseSettings
+pulseSettings.CurrentTransparency = pulseSettings.MinTransparency
+pulseSettings.Increasing = true
+local NameDisplaySettings = Settings.NameDisplaySettings
+
+-- Variables
+local targetPlayer = nil
+local lastHealth = nil
+local BASE_POSITION = Vector2.new(-995, -995)
+local TEXT_HEIGHT = 25
+local damageTexts = {}
+local lockNotification = nil
+local last_render = 0
+
+-- Drawing Objects
+local toolCircle = Drawing.new("Circle")
+toolCircle.Thickness = toolCircleSettings.Thickness
+toolCircle.Color = toolCircleSettings.Color
+toolCircle.NumSides = toolCircleSettings.NumSides
+toolCircle.Radius = toolCircleSettings.Radius
+toolCircle.Filled = toolCircleSettings.Filled
+toolCircle.Transparency = pulseSettings.CurrentTransparency
+toolCircle.Visible = false
+
+-- Crosshair Drawings
+local drawings = {
+    crosshair = {},
+    text = {
+        Drawing.new("Text"),
+        Drawing.new("Text")
+    }
+}
+drawings.text[1].Size = 13
+drawings.text[1].Font = 2
+drawings.text[1].Outline = true
+drawings.text[1].Text = "alc"
+drawings.text[1].Color = Color3.new(1, 1, 1)
+drawings.text[2].Size = 13
+drawings.text[2].Font = 2
+drawings.text[2].Outline = true
+drawings.text[2].Text = ".cc"
+drawings.text[2].Color = crosshair.color
+
+for idx = 1, 8 do
+    drawings.crosshair[idx] = Drawing.new("Line")
+end
+
+-- Utility Functions
+local function solve(angle, radius)
+    return Vector2.new(math.sin(math.rad(angle)) * radius, math.cos(math.rad(angle)) * radius)
+end
+
+local function smoothTrace(targetPos, currentPos, speed)
+    return currentPos:Lerp(targetPos, speed)
+end
+
+local function getClosestPlayerToCursor(radius)
+    local shortestDistance = radius
+    local closestPlayer = nil
+    local mousePosition = UserInputService:GetMouseLocation()
+    
+    for _, player in pairs(Players:GetPlayers()) do
+        local character = player.Character
+        if player ~= LocalPlayer and character and character:FindFirstChild("Humanoid") and character.Humanoid.Health > 0 then
+            local targetPart = character:FindFirstChild(AimbotSettings.TargetPartName)
+            if targetPart then
+                local screenPos, onScreen = Camera:WorldToViewportPoint(targetPart.Position)
+                local distance = (Vector2.new(screenPos.X, screenPos.Y) - mousePosition).Magnitude
+                if distance < shortestDistance and onScreen then
+                    closestPlayer = player
+                    shortestDistance = distance
+                end
+            end
+        end
+    end
+    return closestPlayer
+end
+
+-- ESP Functions
+local Drawings = { Boxes = {}, Names = {} }
+
+local function createESP(player)
+    if player == LocalPlayer then return end
+    
+    local box = {
+        Left = Drawing.new("Line"),
+        Right = Drawing.new("Line"),
+        Top = Drawing.new("Line"),
+        Bottom = Drawing.new("Line")
+    }
+    for _, line in pairs(box) do
+        line.Thickness = 1
+        line.Color = crosshair.color
+        line.Transparency = pulseSettings.CurrentTransparency
+        line.Visible = Toggles.ESP
+    end
+    
+    local name = Drawing.new("Text")
+    name.Size = 16
+    name.Color = crosshair.color
+    name.Outline = true
+    name.Center = true
+    name.Transparency = pulseSettings.CurrentTransparency
+    name.Visible = Toggles.ESP
+    
+    Drawings.Boxes[player] = box
+    Drawings.Names[player] = name
+end
+
+local function removeESP(player)
+    local box = Drawings.Boxes[player]
+    if box then
+        for _, line in pairs(box) do
+            line:Remove()
+        end
+        Drawings.Boxes[player] = nil
+    end
+    
+    local name = Drawings.Names[player]
+    if name then
+        name:Remove()
+        Drawings.Names[player] = nil
+    end
+end
+
+-- Damage Text and Notification
+local function createDamageText(username, partName, damage)
+    if not Toggles.HitNotifications then return end
+    local text = Drawing.new("Text")
+    text.Size = 20
+    text.Color = crosshair.color
+    text.Outline = true
+    text.Center = true
+    text.Text = username .. " was hit at " .. partName .. " for " .. tostring(math.floor(damage))
+    text.Position = BASE_POSITION
+    text.Transparency = pulseSettings.CurrentTransparency
+    text.Visible = true
+    
+    local textWidth = text.TextBounds.X
+    if text.Position.X + textWidth > Camera.ViewportSize.X then
+        text.Position = Vector2.new(Camera.ViewportSize.X - textWidth, text.Position.Y)
+    elseif text.Position.X < 0 then
+        text.Position = Vector2.new(0, text.Position.Y)
+    end
+    
+    local creationTime = tick()
+    table.insert(damageTexts, {text = text, time = creationTime, targetPos = BASE_POSITION})
+end
+
+local function createLockNotification(username)
+    if lockNotification then lockNotification:Remove() end
+    lockNotification = Drawing.new("Text")
+    lockNotification.Size = 20
+    lockNotification.Color = crosshair.color
+    lockNotification.Outline = true
+    lockNotification.Center = true
+    lockNotification.Text = "Locked onto " .. username
+    lockNotification.Position = Vector2.new(-995, -1020)
+    lockNotification.Transparency = pulseSettings.CurrentTransparency
+    lockNotification.Visible = true
+end
+
+-- Gun Chams Functions
+local function applyGunChams(tool)
+    if not Toggles.GunChams or not tool:IsA("Tool") or not tool:FindFirstChild("Handle") then return end
+    local handle = tool.Handle
+    local existingHighlight = handle:FindFirstChildOfClass("Highlight")
+    if existingHighlight then existingHighlight:Destroy() end
+
+    local highlight = Instance.new("Highlight")
+    highlight.FillColor = gunChamColor
+    highlight.OutlineColor = gunChamColor
+    highlight.FillTransparency = pulseSettings.CurrentTransparency
+    highlight.OutlineTransparency = 0
+    highlight.Parent = handle
+
+    spawn(function()
+        while tool.Parent == LocalPlayer.Character and highlight.Parent do
+            highlight.FillTransparency = pulseSettings.CurrentTransparency
+            task.wait(0.05)
+        end
+        highlight:Destroy()
+    end)
+end
+
+local function removeGunChams(tool)
+    if tool:IsA("Tool") and tool:FindFirstChild("Handle") then
+        local handle = tool.Handle
+        local existingHighlight = handle:FindFirstChildOfClass("Highlight")
+        if existingHighlight then existingHighlight:Destroy() end
+    end
+end
+
+-- Update Functions
+local function updateToolCircleAndCrosshair()
+    -- Update settings dynamically
+    Settings = updateSettings()
+    Toggles = Settings.Toggles
+    crosshair = Settings.CrosshairSettings
+    toolCircleSettings = Settings.ToolCircleSettings
+    toolCircle.Color = toolCircleSettings.Color
+    toolCircle.Radius = toolCircleSettings.Radius
+    drawings.text[2].Color = crosshair.color
+
+    local character = LocalPlayer.Character
+    local tool = character and character:FindFirstChildOfClass("Tool")
+    local position
+    
+    if tool then
+        local handle = tool:FindFirstChild("Handle")
+        if handle then
+            local toolTipPos = handle.Position + handle.CFrame:VectorToWorldSpace(Vector3.new(
+                toolCircleSettings.OffsetX,
+                toolCircleSettings.OffsetY,
+                toolCircleSettings.OffsetZ
+            ))
+            local screenPos, onScreen = Camera:WorldToViewportPoint(toolTipPos)
+            if onScreen and screenPos.Z > 0 then
+                position = Vector2.new(screenPos.X, screenPos.Y)
+                toolCircle.Position = smoothTrace(position, toolCircle.Position, AimbotSettings.CircleSpeed)
+                toolCircle.Visible = Toggles.Crosshair
+            end
+        end
+    end
+    
+    if not position then
+        position = (crosshair.mode == 'center' and Camera.ViewportSize / 2 or
+                   crosshair.mode == 'mouse' and UserInputService:GetMouseLocation() or
+                   crosshair.position)
+        toolCircle.Position = smoothTrace(position, toolCircle.Position, AimbotSettings.CircleSpeed)
+        toolCircle.Visible = Toggles.Crosshair
+    end
+
+    local _tick = tick()
+    if _tick - last_render > crosshair.refreshrate then
+        last_render = _tick
+        
+        drawings.text[1].Visible = Toggles.Crosshair
+        drawings.text[2].Visible = Toggles.Crosshair
+
+        if Toggles.Crosshair then
+            local text_x = drawings.text[1].TextBounds.X + drawings.text[2].TextBounds.X
+            drawings.text[1].Position = position + Vector2.new(-text_x / 2, crosshair.radius + (crosshair.resize and crosshair.resize_max or crosshair.length) + 15)
+            drawings.text[2].Position = drawings.text[1].Position + Vector2.new(drawings.text[1].TextBounds.X)
+            drawings.text[1].Transparency = pulseSettings.CurrentTransparency
+            drawings.text[2].Transparency = pulseSettings.CurrentTransparency
+            
+            for idx = 1, 4 do
+                local outline = drawings.crosshair[idx]
+                local inline = drawings.crosshair[idx + 4]
+                local angle = (idx - 1) * 90
+                local length = crosshair.length
+    
+                if crosshair.spin then
+                    local spin_angle = -_tick * crosshair.spin_speed % crosshair.spin_max
+                    angle = angle + TweenService:GetValue(spin_angle / 360, crosshair.spin_style, Enum.EasingDirection.InOut) * 360
+                end
+    
+                if crosshair.resize then
+                    local resize_length = tick() * crosshair.resize_speed % 180
+                    length = crosshair.resize_min + math.sin(math.rad(resize_length)) * crosshair.resize_max
+                end
+    
+                inline.Visible = true
+                inline.Color = crosshair.color
+                inline.From = position + solve(angle, crosshair.radius)
+                inline.To = position + solve(angle, crosshair.radius + length)
+                inline.Thickness = crosshair.width
+                inline.Transparency = pulseSettings.CurrentTransparency
+    
+                outline.Visible = true
+                outline.From = position + solve(angle, crosshair.radius - 1)
+                outline.To = position + solve(angle, crosshair.radius + length + 1)
+                outline.Thickness = crosshair.width + 1.5
+                outline.Transparency = pulseSettings.CurrentTransparency
+            end
+        else
+            for idx = 1, 8 do
+                drawings.crosshair[idx].Visible = false
+            end
+        end
+    end
+end
+
+local function updateAllESP()
+    -- Update settings dynamically
+    Settings = updateSettings()
+    Toggles = Settings.Toggles
+    crosshair = Settings.CrosshairSettings
+    NameDisplaySettings = Settings.NameDisplaySettings
+
+    if not Toggles.ESP then
+        for _, player in pairs(Drawings.Boxes) do
+            removeESP(player)
+        end
+        return
+    end
+
+    for _, player in pairs(Players:GetPlayers()) do
+        if player ~= LocalPlayer then
+            local box = Drawings.Boxes[player]
+            local name = Drawings.Names[player]
+            local character = player.Character
+            
+            if not box or not name then
+                createESP(player)
+                box = Drawings.Boxes[player]
+                name = Drawings.Names[player]
+            end
+            
+            if character and character:FindFirstChild("HumanoidRootPart") and character:FindFirstChild("Humanoid") and character.Humanoid.Health > 0 then
+                local rootPart = character.HumanoidRootPart
+                local size = character:GetExtentsSize()
+                local cf = rootPart.CFrame
+                local top = Camera:WorldToViewportPoint((cf * CFrame.new(0, size.Y/2, 0)).Position)
+                local bottom = Camera:WorldToViewportPoint((cf * CFrame.new(0, -size.Y/2, 0)).Position)
+                local screenSize = bottom.Y - top.Y
+                local boxWidth = screenSize * 0.65
+                local boxPosition = Vector2.new(top.X - boxWidth/2, top.Y)
+                local boxSize = Vector2.new(boxWidth, screenSize)
+
+                if top.Z > 0 and bottom.Z > 0 then
+                    box.Left.From = boxPosition
+                    box.Left.To = boxPosition + Vector2.new(0, boxSize.Y)
+                    box.Left.Visible = true
+                    box.Left.Transparency = pulseSettings.CurrentTransparency
+
+                    box.Right.From = boxPosition + Vector2.new(boxSize.X, 0)
+                    box.Right.To = boxPosition + Vector2.new(boxSize.X, boxSize.Y)
+                    box.Right.Visible = true
+                    box.Right.Transparency = pulseSettings.CurrentTransparency
+
+                    box.Top.From = boxPosition
+                    box.Top.To = boxPosition + Vector2.new(boxSize.X, 0)
+                    box.Top.Visible = true
+                    box.Top.Transparency = pulseSettings.CurrentTransparency
+
+                    box.Bottom.From = boxPosition + Vector2.new(0, boxSize.Y)
+                    box.Bottom.To = boxPosition + Vector2.new(boxSize.X, boxSize.Y)
+                    box.Bottom.Visible = true
+                    box.Bottom.Transparency = pulseSettings.CurrentTransparency
+                    
+                    name.Text = player.DisplayName
+                    local headPos = Camera:WorldToViewportPoint((cf * CFrame.new(0, size.Y/2, 0)).Position)
+                    name.Position = Vector2.new(headPos.X + NameDisplaySettings.XOffset, headPos.Y + NameDisplaySettings.YOffset)
+                    name.Visible = true
+                    name.Transparency = pulseSettings.CurrentTransparency
+                else
+                    for _, line in pairs(box) do
+                        line.Visible = false
+                    end
+                    name.Visible = false
+                end
+            else
+                for _, line in pairs(box) do
+                    line.Visible = false
+                end
+                name.Visible = false
+            end
+        end
+    end
+end
+
+-- Pulsation Update
+local function updatePulsation()
+    Settings = updateSettings()
+    pulseSettings = Settings.PulseSettings
+    if pulseSettings.Increasing then
+        pulseSettings.CurrentTransparency = pulseSettings.CurrentTransparency + pulseSettings.Speed
+        if pulseSettings.CurrentTransparency >= pulseSettings.MaxTransparency then
+            pulseSettings.Increasing = false
+        end
+    else
+        pulseSettings.CurrentTransparency = pulseSettings.CurrentTransparency - pulseSettings.Speed
+        if pulseSettings.CurrentTransparency <= pulseSettings.MinTransparency then
+            pulseSettings.Increasing = true
+        end
+    end
+    toolCircle.Transparency = pulseSettings.CurrentTransparency
+end
+
+-- Main Loop
+RunService.RenderStepped:Connect(function(deltaTime)
+    updatePulsation()
+    updateToolCircleAndCrosshair()
+    updateAllESP()
+
+    Settings = updateSettings()
+    Toggles = Settings.Toggles
+    AimbotSettings = Settings.AimbotSettings
+
+    for i = #damageTexts, 1, -1 do
+        local dt = damageTexts[i]
+        local elapsed = tick() - dt.time
+        local fadeDuration = 1.5
+        dt.text.Transparency = pulseSettings.CurrentTransparency + (elapsed / fadeDuration) * (1 - pulseSettings.CurrentTransparency)
+        
+        dt.text.Position = smoothTrace(dt.targetPos, dt.text.Position, 0.1)
+        
+        local textWidth = dt.text.TextBounds.X
+        if dt.text.Position.X + textWidth > Camera.ViewportSize.X then
+            dt.text.Position = Vector2.new(Camera.ViewportSize.X - textWidth, dt.text.Position.Y)
+        elseif dt.text.Position.X < 0 then
+            dt.text.Position = Vector2.new(0, dt.text.Position.Y)
+        end
+        
+        if elapsed > fadeDuration then
+            dt.text:Remove()
+            table.remove(damageTexts, i)
+            for j, remainingDt in ipairs(damageTexts) do
+                remainingDt.targetPos = Vector2.new(-995, BASE_POSITION.Y + (j - 1) * TEXT_HEIGHT)
+            end
+        end
+    end
+
+    if lockNotification then
+        lockNotification.Transparency = pulseSettings.CurrentTransparency
+    end
+
+    if Toggles.Aimbot and targetPlayer and targetPlayer.Character then
+        local character = targetPlayer.Character
+        local humanoid = character:FindFirstChild("Humanoid")
+        local targetPart = character:FindFirstChild(AimbotSettings.TargetPartName)
+
+        if not humanoid or not targetPart or humanoid.Health <= 0 then
+            Toggles.Aimbot = false
+            targetPlayer = nil
+            toolCircle.Visible = false
+            if lockNotification then
+                lockNotification:Remove()
+                lockNotification = nil
+            end
+            return
+        end
+
+        local predictedPosition = targetPart.Position
+        local goal = CFrame.new(Camera.CFrame.Position, predictedPosition)
+        Camera.CFrame = Camera.CFrame:Lerp(goal, AimbotSettings.Smoothing)
+
+        if lastHealth and humanoid.Health < lastHealth then
+            local damageDealt = lastHealth - humanoid.Health
+            createDamageText(targetPlayer.DisplayName, AimbotSettings.TargetPartName, damageDealt)
+            for i, dt in ipairs(damageTexts) do
+                dt.targetPos = Vector2.new(-995, BASE_POSITION.Y + (i - 1) * TEXT_HEIGHT)
+            end
+        end
+        lastHealth = humanoid.Health
+    end
+end)
+
+-- Input Handling
+UserInputService.InputBegan:Connect(function(input, gameProcessedEvent)
+    if gameProcessedEvent then return end
+    Settings = updateSettings()
+    Toggles = Settings.Toggles
+    if input.KeyCode == Enum.KeyCode.C then
+        Toggles.Aimbot = not Toggles.Aimbot
+        if Toggles.Aimbot then
+            targetPlayer = getClosestPlayerToCursor(AimbotSettings.FOVRadius)
+            if targetPlayer then
+                createLockNotification(targetPlayer.DisplayName)
+                lastHealth = targetPlayer.Character.Humanoid.Health
+            else
+                Toggles.Aimbot = false
+            end
+        else
+            targetPlayer = nil
+            toolCircle.Visible = false
+            if lockNotification then
+                lockNotification:Remove()
+                lockNotification = nil
+            end
+        end
+    elseif input.KeyCode == Enum.KeyCode.V then
+        Toggles.Crosshair = not Toggles.Crosshair
+    elseif input.KeyCode == Enum.KeyCode.B then
+        Toggles.ESP = not Toggles.ESP
+    elseif input.KeyCode == Enum.KeyCode.N then
+        Toggles.GunChams = not Toggles.GunChams
+    end
+end)
+
+-- Player Handling
+Players.PlayerRemoving:Connect(function(player)
+    removeESP(player)
+    if player == targetPlayer then
+        Toggles.Aimbot = false
+        targetPlayer = nil
+        toolCircle.Visible = false
+        lastHealth = nil
+        if lockNotification then
+            lockNotification:Remove()
+            lockNotification = nil
+        end
+    end
+end)
+
+Players.PlayerAdded:Connect(function(player)
+    createESP(player)
+end)
+
+LocalPlayer.CharacterAdded:Connect(function(character)
+    character.ChildAdded:Connect(function(child)
+        if child:IsA("Tool") then
+            updateToolCircleAndCrosshair()
+            applyGunChams(child)
+        end
+    end)
+    character.ChildRemoved:Connect(function(child)
+        if child:IsA("Tool") then
+            toolCircle.Visible = false
+            removeGunChams(child)
+        end
+    end)
+end)
+
+if LocalPlayer.Character then
+    for _, tool in ipairs(LocalPlayer.Backpack:GetChildren()) do
+        if tool:IsA("Tool") then
+            applyGunChams(tool)
+        end
+    end
+    LocalPlayer.Character.ChildAdded:Connect(function(child)
+        if child:IsA("Tool") then
+            updateToolCircleAndCrosshair()
+            applyGunChams(child)
+        end
+    end)
+    LocalPlayer.Character.ChildRemoved:Connect(function(child)
+        if child:IsA("Tool") then
+            toolCircle.Visible = false
+            removeGunChams(child)
+        end
+    end)
+end
+
+LocalPlayer.Backpack.ChildRemoved:Connect(function(tool)
+    if tool:IsA("Tool") then
+        removeGunChams(tool)
+    end
+end)
+
+-- Initial Load Notification with Enabled/Disabled States
+local function getToggleState(toggle)
+    return toggle and "Enabled" or "Disabled"
+end
+
+local loadText = Drawing.new("Text")
+loadText.Size = 20
+loadText.Color = crosshair.color
+loadText.Outline = true
+loadText.Center = true
+loadText.Text = string.format(
+    "Aimbot Loaded - C: Aimbot (%s) | V: Crosshair (%s) | B: ESP (%s) | N: GunChams (%s)",
+    getToggleState(Toggles.Aimbot),
+    getToggleState(Toggles.Crosshair),
+    getToggleState(Toggles.ESP),
+    getToggleState(Toggles.GunChams)
+)
+loadText.Position = Vector2.new(Camera.ViewportSize.X / 2, 50)
+loadText.Transparency = pulseSettings.CurrentTransparency
+loadText.Visible = true
+task.delay(5, function()
+    loadText:Remove()
+end)
