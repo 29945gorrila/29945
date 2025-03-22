@@ -32,18 +32,11 @@ end
 -- Function to update settings from getgenv().Settings
 local function updateSettings()
     local envSettings = getgenv().Settings or {}
+    local defaultSettings = { -- Define defaults here }
     local function mergeTables(default, new)
-        local result = {}
-        for k, v in pairs(default) do
-            if type(v) == "table" and new[k] and type(new[k]) == "table" then
-                result[k] = mergeTables(v, new[k])
-            else
-                result[k] = new[k] ~= nil and new[k] or v
-            end
-        end
-        return result
+        -- Same as before
     end
-    return mergeTables(DefaultSettings, envSettings)
+    return mergeTables(defaultSettings, envSettings)
 end
 
 -- Initial settings load
