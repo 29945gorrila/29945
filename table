@@ -77,7 +77,7 @@ getgenv().Holy = {
     },
     
     Checks = {
-        KnockedChecks = true,  -- 90% vroken
+        KnockedChecks = true,
         TargetDeath = false,
         PlayerDeath = false,
         WallCheck = false,
@@ -85,6 +85,103 @@ getgenv().Holy = {
             Enabled = false,
             Notification = true,
         },
+    },
+    
+    Visuals = {
+        Enabled = true,
+        Crosshair = {
+            Enabled = true,
+            RefreshRate = 0,
+            Mode = "mouse",
+            Width = 1.5,
+            Length = 10,
+            Radius = 11,
+            Color = Color3.fromRGB(255, 47, 126),
+            Spin = true,
+            SpinSpeed = 150,
+            SpinMax = 340,
+            SpinStyle = Enum.EasingStyle.Sine,
+            Resize = true,
+            ResizeSpeed = 150,
+            ResizeMin = 5,
+            ResizeMax = 22,
+        },
+        ESP = {
+            Enabled = true,
+            BoxColor = Color3.fromRGB(255, 47, 126),
+            NameOffsetX = 0,
+            NameOffsetY = -20
+        },
+        GunChams = {
+            Enabled = true,
+            Color = Color3.fromRGB(255, 47, 126)
+        },
+        ToolCircle = {
+            Enabled = true,
+            ToolSettings = {
+                ["[DoubleBarrel]"] = {
+                    Thickness = 1,
+                    NumSides = 32,
+                    Radius = 50,
+                    Filled = true,
+                    Color = Color3.fromRGB(255, 47, 126),
+                    OffsetX = 0,
+                    OffsetY = 0.5,
+                    OffsetZ = -2
+                },
+                ["[Revolver]"] = {
+                    Thickness = 1,
+                    NumSides = 32,
+                    Radius = 50,
+                    Filled = true,
+                    Color = Color3.fromRGB(255, 47, 126),
+                    OffsetX = -1,
+                    OffsetY = 0.5,
+                    OffsetZ = 0
+                },
+                ["[TacticalShotgun]"] = {
+                    Thickness = 1,
+                    NumSides = 32,
+                    Radius = 50,
+                    Filled = true,
+                    Color = Color3.fromRGB(255, 47, 126),
+                    OffsetX = 0,
+                    OffsetY = 0.5,
+                    OffsetZ = 2.5
+                },
+                ["[Knife]"] = {
+                    Thickness = 1,
+                    NumSides = 32,
+                    Radius = 50,
+                    Filled = true,
+                    Color = Color3.fromRGB(255, 47, 126),
+                    OffsetX = 0,
+                    OffsetY = -0.1,
+                    OffsetZ = -1.2
+                },
+                ["Default"] = {
+                    Thickness = 1,
+                    NumSides = 32,
+                    Radius = 50,
+                    Filled = true,
+                    Color = Color3.fromRGB(255, 47, 126),
+                    OffsetX = -1,
+                    OffsetY = 0.5,
+                    OffsetZ = 0
+                }
+            }
+        },
+        HitNotifications = {
+            Enabled = true,
+            Color = Color3.fromRGB(255, 47, 126),
+            BasePosition = Vector2.new(-995, -995),
+            TextHeight = 25
+        },
+        Pulse = {
+            Enabled = true,
+            Speed = 0.0005,
+            MinTransparency = 0.2,
+            MaxTransparency = 0.6
+        }
     }
 }
-
