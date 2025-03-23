@@ -1,3 +1,4 @@
+
 if getgenv().Loaded == true then
     if getgenv().Holy.Options.UpdateNotification then
         game:GetService("StarterGui"):SetCore("SendNotification", {
@@ -362,7 +363,7 @@ local function createESP(player)
     for _, line in pairs(box) do
         line.Thickness = 1
         line.Color = getgenv().Holy.Visuals.ESP.BoxColor
-        line.Transparency = pulseState.CurrentTransparency
+        line.Transparency = getgenv().Holy.Visuals.ESP.Transparency -- Apply custom transparency
         line.Visible = true
     end
     
@@ -371,7 +372,7 @@ local function createESP(player)
     name.Color = getgenv().Holy.Visuals.ESP.BoxColor
     name.Outline = true
     name.Center = true
-    name.Transparency = pulseState.CurrentTransparency
+    name.Transparency = getgenv().Holy.Visuals.ESP.Transparency -- Apply custom transparency
     name.Visible = true
     
     Drawings.Boxes[player] = box
@@ -577,28 +578,28 @@ local function updateESP()
                     box.Left.From = boxPosition
                     box.Left.To = boxPosition + Vector2.new(0, boxSize.Y)
                     box.Left.Visible = true
-                    box.Left.Transparency = pulseState.CurrentTransparency
+                    box.Left.Transparency = getgenv().Holy.Visuals.ESP.Transparency -- Update with custom transparency
 
                     box.Right.From = boxPosition + Vector2.new(boxSize.X, 0)
                     box.Right.To = boxPosition + Vector2.new(boxSize.X, boxSize.Y)
                     box.Right.Visible = true
-                    box.Right.Transparency = pulseState.CurrentTransparency
+                    box.Right.Transparency = getgenv().Holy.Visuals.ESP.Transparency -- Update with custom transparency
 
                     box.Top.From = boxPosition
                     box.Top.To = boxPosition + Vector2.new(boxSize.X, 0)
                     box.Top.Visible = true
-                    box.Top.Transparency = pulseState.CurrentTransparency
+                    box.Top.Transparency = getgenv().Holy.Visuals.ESP.Transparency -- Update with custom transparency
 
                     box.Bottom.From = boxPosition + Vector2.new(0, boxSize.Y)
                     box.Bottom.To = boxPosition + Vector2.new(boxSize.X, boxSize.Y)
                     box.Bottom.Visible = true
-                    box.Bottom.Transparency = pulseState.CurrentTransparency
+                    box.Bottom.Transparency = getgenv().Holy.Visuals.ESP.Transparency -- Update with custom transparency
                     
                     name.Text = player.DisplayName
                     local headPos = Camera:WorldToViewportPoint((cf * CFrame.new(0, size.Y/2, 0)).Position)
                     name.Position = Vector2.new(headPos.X + getgenv().Holy.Visuals.ESP.NameOffsetX, headPos.Y + getgenv().Holy.Visuals.ESP.NameOffsetY)
                     name.Visible = true
-                    name.Transparency = pulseState.CurrentTransparency
+                    name.Transparency = getgenv().Holy.Visuals.ESP.Transparency -- Update with custom transparency
                 else
                     for _, line in pairs(box) do
                         line.Visible = false
