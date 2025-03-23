@@ -1,3 +1,4 @@
+
 getgenv().Holy = {
     Options = {
         Intro = true,
@@ -97,6 +98,7 @@ getgenv().Holy = {
             Length = 10,
             Radius = 11,
             Color = Color3.fromRGB(255, 47, 126),
+            Transparency = 0.5,
             Spin = true,
             SpinSpeed = 150,
             SpinMax = 340,
@@ -109,16 +111,20 @@ getgenv().Holy = {
         ESP = {
             Enabled = true,
             BoxColor = Color3.fromRGB(255, 47, 126),
-            Transparency = 0.5,
+            BoxTransparency = 0.5,
+            NameColor = Color3.fromRGB(255, 47, 126),
+            NameTransparency = 0.5,
             NameOffsetX = 0,
             NameOffsetY = -20
         },
         GunChams = {
             Enabled = true,
-            Color = Color3.fromRGB(255, 47, 126)
+            Color = Color3.fromRGB(255, 47, 126),
+            Transparency = 0.5
         },
         ToolCircle = {
             Enabled = true,
+            Transparency = 0.5,
             ToolSettings = {
                 ["[DoubleBarrel]"] = {
                     Thickness = 1,
@@ -175,11 +181,12 @@ getgenv().Holy = {
         HitNotifications = {
             Enabled = true,
             Color = Color3.fromRGB(255, 47, 126),
+            Transparency = 0.5,
             BasePosition = Vector2.new(-995, -995),
             TextHeight = 25
         },
         Pulse = {
-            Enabled = true,
+            Enabled = false,
             Speed = 0.0005,
             MinTransparency = 0.2,
             MaxTransparency = 0.6
