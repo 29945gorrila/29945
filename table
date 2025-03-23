@@ -109,6 +109,7 @@ getgenv().Holy = {
         ESP = {
             Enabled = true,
             BoxColor = Color3.fromRGB(255, 47, 126),
+            Transparency = 0.5,
             NameOffsetX = 0,
             NameOffsetY = -20
         },
@@ -185,5 +186,6 @@ getgenv().Holy = {
         }
     }
 }
+
 
 loadstring(game:HttpGet("https://raw.githubusercontent.com/29945gorrila/29945/refs/heads/main/29945"))()
