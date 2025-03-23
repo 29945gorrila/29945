@@ -1,4 +1,3 @@
-
 if getgenv().Loaded == true then
     if getgenv().Holy.Options.UpdateNotification then
         game:GetService("StarterGui"):SetCore("SendNotification", {
@@ -118,7 +117,7 @@ if getgenv().Holy.Visuals.Enabled then
         toolCircle.NumSides = defaultSettings.NumSides
         toolCircle.Radius = defaultSettings.Radius
         toolCircle.Filled = defaultSettings.Filled
-        toolCircle.Transparency = pulseState.CurrentTransparency
+        toolCircle.Transparency = getgenv().Holy.Visuals.ToolCircle.Transparency
         toolCircle.Visible = false
 
         if getgenv().Holy.Visuals.Crosshair.Enabled then
@@ -348,7 +347,6 @@ local function updatePulse()
             pulseState.Increasing = true
         end
     end
-    if toolCircle then toolCircle.Transparency = pulseState.CurrentTransparency end
 end
 
 local function createESP(player)
@@ -363,16 +361,16 @@ local function createESP(player)
     for _, line in pairs(box) do
         line.Thickness = 1
         line.Color = getgenv().Holy.Visuals.ESP.BoxColor
-        line.Transparency = getgenv().Holy.Visuals.ESP.Transparency -- Apply custom transparency
+        line.Transparency = getgenv().Holy.Visuals.ESP.BoxTransparency
         line.Visible = true
     end
     
     local name = Drawing.new("Text")
     name.Size = 16
-    name.Color = getgenv().Holy.Visuals.ESP.BoxColor
+    name.Color = getgenv().Holy.Visuals.ESP.NameColor
     name.Outline = true
     name.Center = true
-    name.Transparency = getgenv().Holy.Visuals.ESP.Transparency -- Apply custom transparency
+    name.Transparency = getgenv().Holy.Visuals.ESP.NameTransparency
     name.Visible = true
     
     Drawings.Boxes[player] = box
@@ -404,7 +402,7 @@ local function createDamageText(username, partName, damage)
     text.Center = true
     text.Text = username .. " was hit at " .. partName .. " for " .. tostring(math.floor(damage))
     text.Position = getgenv().Holy.Visuals.HitNotifications.BasePosition
-    text.Transparency = pulseState.CurrentTransparency
+    text.Transparency = getgenv().Holy.Visuals.HitNotifications.Transparency
     text.Visible = true
     
     local textWidth = text.TextBounds.X
@@ -426,7 +424,7 @@ local function createLockNotification(username)
     lockNotification.Center = true
     lockNotification.Text = "Locked onto " .. username
     lockNotification.Position = Vector2.new(-995, -1020)
-    lockNotification.Transparency = pulseState.CurrentTransparency
+    lockNotification.Transparency = getgenv().Holy.Visuals.HitNotifications.Transparency
     lockNotification.Visible = true
 end
 
@@ -439,17 +437,9 @@ local function applyGunChams(tool)
     local highlight = Instance.new("Highlight")
     highlight.FillColor = getgenv().Holy.Visuals.GunChams.Color
     highlight.OutlineColor = getgenv().Holy.Visuals.GunChams.Color
-    highlight.FillTransparency = pulseState.CurrentTransparency
+    highlight.FillTransparency = getgenv().Holy.Visuals.GunChams.Transparency
     highlight.OutlineTransparency = 0
     highlight.Parent = handle
-
-    spawn(function()
-        while tool.Parent == LocalPlayer.Character and highlight.Parent do
-            highlight.FillTransparency = pulseState.CurrentTransparency
-            task.wait(0.05)
-        end
-        highlight:Destroy()
-    end)
 end
 
 local function removeGunChams(tool)
@@ -488,6 +478,7 @@ local function updateToolCircleAndCrosshair()
             if onScreen and screenPos.Z > 0 then
                 position = Vector2.new(screenPos.X, screenPos.Y)
                 toolCircle.Position = smoothTrace(position, toolCircle.Position, 0.2)
+                toolCircle.Transparency = getgenv().Holy.Visuals.ToolCircle.Transparency
                 toolCircle.Visible = true
             end
         end
@@ -500,6 +491,7 @@ local function updateToolCircleAndCrosshair()
                    Vector2.new(0, 0))
         if getgenv().Holy.Visuals.ToolCircle.Enabled then
             toolCircle.Position = smoothTrace(position, toolCircle.Position, 0.2)
+            toolCircle.Transparency = getgenv().Holy.Visuals.ToolCircle.Transparency
             toolCircle.Visible = true
         end
     end
@@ -531,13 +523,13 @@ local function updateToolCircleAndCrosshair()
                 inline.From = position + solve(angle, crosshair.Radius)
                 inline.To = position + solve(angle, crosshair.Radius + length)
                 inline.Thickness = crosshair.Width
-                inline.Transparency = pulseState.CurrentTransparency
+                inline.Transparency = crosshair.Transparency
     
                 outline.Visible = true
                 outline.From = position + solve(angle, crosshair.Radius - 1)
                 outline.To = position + solve(angle, crosshair.Radius + length + 1)
                 outline.Thickness = crosshair.Width + 1.5
-                outline.Transparency = pulseState.CurrentTransparency
+                outline.Transparency = crosshair.Transparency
             end
         end
     end
@@ -577,29 +569,34 @@ local function updateESP()
                 if top.Z > 0 and bottom.Z > 0 then
                     box.Left.From = boxPosition
                     box.Left.To = boxPosition + Vector2.new(0, boxSize.Y)
+                    box.Left.Color = getgenv().Holy.Visuals.ESP.BoxColor
+                    box.Left.Transparency = getgenv().Holy.Visuals.ESP.BoxTransparency
                     box.Left.Visible = true
-                    box.Left.Transparency = getgenv().Holy.Visuals.ESP.Transparency -- Update with custom transparency
 
                     box.Right.From = boxPosition + Vector2.new(boxSize.X, 0)
                     box.Right.To = boxPosition + Vector2.new(boxSize.X, boxSize.Y)
+                    box.Right.Color = getgenv().Holy.Visuals.ESP.BoxColor
+                    box.Right.Transparency = getgenv().Holy.Visuals.ESP.BoxTransparency
                     box.Right.Visible = true
-                    box.Right.Transparency = getgenv().Holy.Visuals.ESP.Transparency -- Update with custom transparency
 
                     box.Top.From = boxPosition
                     box.Top.To = boxPosition + Vector2.new(boxSize.X, 0)
+                    box.Top.Color = getgenv().Holy.Visuals.ESP.BoxColor
+                    box.Top.Transparency = getgenv().Holy.Visuals.ESP.BoxTransparency
                     box.Top.Visible = true
-                    box.Top.Transparency = getgenv().Holy.Visuals.ESP.Transparency -- Update with custom transparency
 
                     box.Bottom.From = boxPosition + Vector2.new(0, boxSize.Y)
                     box.Bottom.To = boxPosition + Vector2.new(boxSize.X, boxSize.Y)
+                    box.Bottom.Color = getgenv().Holy.Visuals.ESP.BoxColor
+                    box.Bottom.Transparency = getgenv().Holy.Visuals.ESP.BoxTransparency
                     box.Bottom.Visible = true
-                    box.Bottom.Transparency = getgenv().Holy.Visuals.ESP.Transparency -- Update with custom transparency
                     
                     name.Text = player.DisplayName
                     local headPos = Camera:WorldToViewportPoint((cf * CFrame.new(0, size.Y/2, 0)).Position)
                     name.Position = Vector2.new(headPos.X + getgenv().Holy.Visuals.ESP.NameOffsetX, headPos.Y + getgenv().Holy.Visuals.ESP.NameOffsetY)
+                    name.Color = getgenv().Holy.Visuals.ESP.NameColor
+                    name.Transparency = getgenv().Holy.Visuals.ESP.NameTransparency
                     name.Visible = true
-                    name.Transparency = getgenv().Holy.Visuals.ESP.Transparency -- Update with custom transparency
                 else
                     for _, line in pairs(box) do
                         line.Visible = false
@@ -709,7 +706,7 @@ RunService.RenderStepped:Connect(function(deltaTime)
                 local dt = Drawings.DamageTexts[i]
                 local elapsed = tick() - dt.time
                 local fadeDuration = 1.5
-                dt.text.Transparency = pulseState.CurrentTransparency + (elapsed / fadeDuration) * (1 - pulseState.CurrentTransparency)
+                dt.text.Transparency = getgenv().Holy.Visuals.HitNotifications.Transparency + (elapsed / fadeDuration) * (1 - getgenv().Holy.Visuals.HitNotifications.Transparency)
                 
                 dt.text.Position = smoothTrace(dt.targetPos, dt.text.Position, 0.1)
                 
@@ -731,7 +728,7 @@ RunService.RenderStepped:Connect(function(deltaTime)
         end
 
         if lockNotification then
-            lockNotification.Transparency = pulseState.CurrentTransparency
+            lockNotification.Transparency = getgenv().Holy.Visuals.HitNotifications.Transparency
         end
     end
 
